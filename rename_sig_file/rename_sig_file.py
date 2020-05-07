@@ -19,13 +19,15 @@ def read_neinfo(reference):
     return reference_map
 
 
-def rename_sig_file_list(abs_input_folder, list_files, reference_map, out_dir):
-    # os.chdir(abs_input_folder)
+def rename_sig_file_list(abs_input_folder, list_files, reference_map, out_dir=None):
+    """Most Granular method
+    This method will be called once you have a list of .Sig files to be worked on
+    """
     for file in list_files:
         if file.upper().endswith((".SIG", ".SIG.GZ")) and "NE=" in file.upper():
             file_path = os.path.join(abs_input_folder, file)
             print("file name is {}".format(file_path))
-            print("{}-{}".format( file, os.path.exists(file_path)))
+            # print("{}-{}".format( file, os.path.exists(file_path)))
             file_name_items = file.split(".", maxsplit=1)
             try:
                 replacement = reference_map[file_name_items[0]]
@@ -35,7 +37,7 @@ def rename_sig_file_list(abs_input_folder, list_files, reference_map, out_dir):
             else:
                 new_file_name = "{0}.{1}".format(replacement, file_name_items[1])
                 print("Old= {0} -vs- New= {1}".format(file, new_file_name))
-                print("{}-{}".format(file, os.path.exists(file_path)))
+                # print("{}-{}".format(file, os.path.exists(file_path)))
                 if out_dir is None:
                     new_file_path = os.path.join(abs_input_folder, new_file_name)
                     shutil.move(file_path, new_file_path)
@@ -47,9 +49,7 @@ def rename_sig_file_list(abs_input_folder, list_files, reference_map, out_dir):
 def rename_sig_files_in_a_dir(input_folder, reference_map, out_dir=None):
     # The input_folder of this method will take only .SIG or .SIG.gz files
     """
-    reference_file = reference_file
-
-    reference_map = read_neinfo(reference_file)
+    This method will be called once you got a directory having only Sig files
     """
     # print(reference_map)
     abs_input_folder = os.path.abspath(input_folder)
@@ -102,8 +102,11 @@ def rename_sig_files_in_a_dir(input_folder, reference_map, out_dir=None):
 
 
 def rename_sig_file_into_tar_list(tar_file_list, reference_map, input_folder_contain_tar_gz):
+    """This method will be called once I have got a list of .tar files
+    """
     for file in tar_file_list:
         if file.endswith("tar.gz"):
+            # Decide a temp-directory for each .tar file
             temp_dir = str(file).split(".")[0]
             print("Temp dir for tar {} is {}".format(str(file), temp_dir))
             internal_temp_dir = os.path.join(input_folder_contain_tar_gz, temp_dir)
@@ -113,12 +116,17 @@ def rename_sig_file_into_tar_list(tar_file_list, reference_map, input_folder_con
             tf.extractall(internal_temp_dir)  # this dir to be made based on thread ID
             tf.close()
             print("Working on {}".format(file))
-            rename_sig_files_in_a_dir(internal_temp_dir, reference_map, input_folder_contain_tar_gz)
-            print("Working done on file {}".format(file))
-            # try:
-            #     shutil.rmtree(internal_temp_dir)
-            # except PermissionError:
-            #     pass
+            try:
+                rename_sig_files_in_a_dir(internal_temp_dir, reference_map, input_folder_contain_tar_gz)
+            except:
+                print("Working on {} was failed ".format(file))
+            else:
+                print("Working done on file {}, so deleting it, and its corresponding temp dir {}".format(file, internal_temp_dir))
+                try:
+                    shutil.rmtree(internal_temp_dir)
+                    os.remove(abs_file)
+                except PermissionError:
+                    pass
 
 
 def rename_sig_inside_tars_under_base_dir(input_folder_contain_tar_gz, reference_map, content_type='tar'):
@@ -134,48 +142,50 @@ def rename_sig_inside_tars_under_base_dir(input_folder_contain_tar_gz, reference
             if file_name.upper().endswith(".SIG") or file_name.upper().endswith(".SIG.GZ"):
                 sig_file_list.append(file_name)
 
-    if len(tar_file_list) != 0:
-        # os.mkdir(internal_temp_dir, 777)
-        print("List of tar file is {}".format(tar_file_list))
-        ##########################
-        thread_list = []
-        tar_file_count = len(tar_file_list)
-        print("Total number of tar files {}".format(tar_file_count))
-        max_threads_count = 6
-        if tar_file_count <= max_threads_count:
-            total_threads = tar_file_count
-            print("File per thread is decided = 1")
-            for i in range(total_threads):  # 0 .... 5
-                thread_list.append(Thread(target=rename_sig_file_into_tar_list, args=(tar_file_list[i], reference_map, input_folder_contain_tar_gz)))
-        else:
-            total_threads = max_threads_count
-            files_per_threads_for_5_threads = tar_file_count // (max_threads_count - 1)
-            file_for_last_thread = tar_file_count % (max_threads_count - 1)
-            print("File per thread is decided = {}".format(files_per_threads_for_5_threads))
-            for i in range(total_threads): # 0 to 5
-                if i <= 4:
-                    thread_list.append(Thread(target=rename_sig_file_into_tar_list, args=(tar_file_list[i*files_per_threads_for_5_threads: i*files_per_threads_for_5_threads+ files_per_threads_for_5_threads], reference_map, input_folder_contain_tar_gz)))
-                else:
-                    thread_list.append(Thread(target=rename_sig_file_into_tar_list, args=(tar_file_list[-file_for_last_thread:], reference_map, input_folder_contain_tar_gz)))
-        print("Threads are {}".format(thread_list))
+    print("Sig file list : {}".format(sig_file_list))
 
-
+    if content_type.lower() == "tar":
         ##### Single thread ##############
         # rename_sig_file_into_tar_list(tar_file_list, reference_map, input_folder_contain_tar_gz)
         #################################
         ##### Multi Thread ##############
-        th_nbr = 0
-        for thread in thread_list:
-            thread.start()
-            print(th_nbr)
-            th_nbr += 1
+        if len(tar_file_list) != 0:
+            # os.mkdir(internal_temp_dir, 777)
+            print("List of tar file is {}".format(tar_file_list))
+            ##########################
+            thread_list = []
+            tar_file_count = len(tar_file_list)
+            print("Total number of tar files {}".format(tar_file_count))
+            max_threads_count = 6
+            if tar_file_count <= max_threads_count:
+                total_threads = tar_file_count
+                print("File per thread is decided = 1")
+                for i in range(total_threads):  # 0 .... 5
+                    thread_list.append(Thread(target=rename_sig_file_into_tar_list, args=([tar_file_list[i]], reference_map, input_folder_contain_tar_gz)))
+            else:
+                total_threads = max_threads_count
+                files_per_threads_for_5_threads = tar_file_count // (max_threads_count - 1)
+                file_for_last_thread = tar_file_count % (max_threads_count - 1)
+                print("File per thread is decided = {}".format(files_per_threads_for_5_threads))
+                for i in range(total_threads): # 0 to 5
+                    if i <= 4:
+                        thread_list.append(Thread(target=rename_sig_file_into_tar_list, args=(tar_file_list[i*files_per_threads_for_5_threads: i*files_per_threads_for_5_threads+ files_per_threads_for_5_threads], reference_map, input_folder_contain_tar_gz)))
+                    else:
+                        thread_list.append(Thread(target=rename_sig_file_into_tar_list, args=(tar_file_list[-file_for_last_thread:], reference_map, input_folder_contain_tar_gz)))
+            print("Threads are {}".format(thread_list))
 
-        for thread in thread_list:
-            thread.join()
+            th_nbr = 0
+            for thread in thread_list:
+                thread.start()
+                print(th_nbr)
+                th_nbr += 1
 
-        # else:
-        #     if content_type.lower() == 'sig':
-        #         rename_sig_files_in_a_dir(input_folder_contain_tar_gz, reference_map)
+            for thread in thread_list:
+                thread.join()
+        else:
+            print("No .tar file to process in {}".format(input_folder_contain_tar_gz))
+    elif content_type.lower() == "sig" or content_type.lower() == "sig.gz":
+        rename_sig_file_list(input_folder_contain_tar_gz, sig_file_list, reference_map)
 
 
 def main():
@@ -190,7 +200,15 @@ def main():
     reference_map = read_neinfo(reference_file)
     content_type = args.content_type
     print("content type is {}".format(content_type))
-    # for cur_dir, list_dir, list_files in os.walk(input_folder):
+    for cur_dir, list_dir, list_files in os.walk(input_folder):
+        print("Current directory is {}".format(cur_dir))
+        for dir in list_dir:
+            abs_dir = os.path.join(cur_dir, dir)
+            if content_type is None:
+                rename_sig_inside_tars_under_base_dir(abs_dir, reference_map)
+            else:
+                rename_sig_inside_tars_under_base_dir(abs_dir, reference_map, content_type=content_type)
+
     #     if content_type is None or content_type == "tar":
     #         rename_sig_inside_tar(cur_dir, reference_map)
     #     else:
@@ -202,7 +220,9 @@ def main():
     #             rename_sig_inside_tar(abs_dir, reference_map)
     #         else:
     #             rename_sig_inside_tar(abs_dir, reference_map, content_type)
-    rename_sig_inside_tars_under_base_dir(input_folder, reference_map, content_type="tar")
+    # for dir in os.listdir(input_folder):
+    #     abs_dir = os.path.join(input_folder, dir)
+    #     rename_sig_inside_tars_under_base_dir(abs_dir, reference_map, content_type=content_type)
 
 
 if __name__ == "__main__":
