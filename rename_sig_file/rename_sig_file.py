@@ -185,7 +185,22 @@ def rename_sig_inside_tars_under_base_dir(input_folder_contain_tar_gz, reference
         else:
             print("No .tar file to process in {}".format(input_folder_contain_tar_gz))
     elif content_type.lower() == "sig" or content_type.lower() == "sig.gz":
-        rename_sig_file_list(input_folder_contain_tar_gz, sig_file_list, reference_map)
+        sig_thread_list = []
+        max_thread_count = 6
+        sig_files_count = len(sig_file_list)
+        if sig_files_count > 0:
+            if sig_files_count <= max_thread_count:
+                total_thread_count = sig_files_count
+                sig_files_per_thread = 1
+                for thread_id in range(0, total_thread_count, sig_files_per_thread):
+                    sig_thread_list.append(Thread(target=rename_sig_file_list, args=(input_folder_contain_tar_gz, [sig_file_list[thread_id]], reference_map)))
+            else:
+                total_thread_count = max_thread_count
+                sig_files_per_thread_for_5_threads = sig_files_count // (max_thread_count-1)
+                sig_files_for_6th_thread = sig_files_count % (max_thread_count-1)
+                for sig_file_id in range(0,(sig_files_count-sig_files_for_6th_thread), sig_files_per_thread_for_5_threads):
+                    sig_thread_list.append(Thread(target=rename_sig_file_list, args=(input_folder_contain_tar_gz, sig_file_list[sig_file_id:sig_file_id+sig_files_per_thread_for_5_threads, reference_map])))
+                sig_thread_list.append(Thread(target=rename_sig_file_list, args=(input_folder_contain_tar_gz, sig_file_list[-sig_files_for_6th_thread:], reference_map)))
 
 
 def main():
@@ -208,21 +223,6 @@ def main():
                 rename_sig_inside_tars_under_base_dir(abs_dir, reference_map)
             else:
                 rename_sig_inside_tars_under_base_dir(abs_dir, reference_map, content_type=content_type)
-
-    #     if content_type is None or content_type == "tar":
-    #         rename_sig_inside_tar(cur_dir, reference_map)
-    #     else:
-    #         rename_sig_inside_tar(cur_dir, reference_map, content_type)
-    #     for dir in list_dir:
-    #         print("dir under current directory is {}".format(dir))
-    #         abs_dir = os.path.abspath(os.path.join(cur_dir, dir))
-    #         if content_type is None:
-    #             rename_sig_inside_tar(abs_dir, reference_map)
-    #         else:
-    #             rename_sig_inside_tar(abs_dir, reference_map, content_type)
-    # for dir in os.listdir(input_folder):
-    #     abs_dir = os.path.join(input_folder, dir)
-    #     rename_sig_inside_tars_under_base_dir(abs_dir, reference_map, content_type=content_type)
 
 
 if __name__ == "__main__":
